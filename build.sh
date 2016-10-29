@@ -34,7 +34,7 @@ TOOLS_DIR="/opt/rpi_tools"
 FIRMWARE_DIR="/opt/rpi_firmware"
 DEBIAN_DIR="/opt/rpi_debian"
 NUM_CPUS=`nproc`
-GIT_REPO="raspberrypi/linux"
+GIT_REPO="adafruit/adafruit-raspberrypi-linux"
 V1_DIR="${REPO_ROOT}${GIT_REPO}/v1"
 V2_DIR="${REPO_ROOT}${GIT_REPO}/v2"
 GIT_BRANCH=""
@@ -120,12 +120,12 @@ fi
 
 if [ ! -d $FIRMWARE_DIR ]; then
   echo "**** CLONING FIRMWARE REPO ****"
-  git clone --depth 1 https://github.com/raspberrypi/firmware $FIRMWARE_DIR
+  git clone --depth 1 https://github.com/RPi-Distro/firmware $FIRMWARE_DIR
 fi
 
 if [ ! -d $DEBIAN_DIR ]; then
   echo "**** CLONING DEBIAN BUILD REPO ****"
-  git clone --depth 1 https://github.com/asb/firmware $DEBIAN_DIR
+  git clone --depth 1 https://github.com/RPi-Distro/firmware $DEBIAN_DIR
 fi
 
 # make sure tools dir is up to date
@@ -134,10 +134,12 @@ git pull
 
 # make sure firmware dir is up to date
 cd $FIRMWARE_DIR
+git checkout debian
 git pull
 
 # make sure debian package dir is up to date
 cd $DEBIAN_DIR
+git checkout debian
 git pull
 
 # pull together the debian package folder
@@ -146,13 +148,12 @@ NEW_VERSION="1.${CURRENT_DATE}"
 PKG_DIR="${PKG_TMP}/raspberrypi-firmware_${NEW_VERSION}"
 mkdir $PKG_DIR
 cp -r $FIRMWARE_DIR/* $PKG_DIR
-# mv $PKG_DIR/boot/kernel.img $PKG_DIR/boot/kernel_emergency.img
-# mv $PKG_DIR/boot/kernel7.img $PKG_DIR/boot/kernel7_emergency.img
 
 # RasPi v1 build
 cd $V1_DIR
-git pull
+git fetch
 git checkout ${GIT_BRANCH}
+git pull
 git submodule update --init
 CCPREFIX=${TOOLS_DIR}/arm-bcm2708/arm-bcm2708-linux-gnueabi/bin/arm-bcm2708-linux-gnueabi-
 if [ ! -f .config ]; then
@@ -168,13 +169,14 @@ cp .config /vagrant/v1_saved_config
 echo "**** COMPILING v1 KERNEL ****"
 ARCH=arm CROSS_COMPILE=${CCPREFIX} make -j${NUM_CPUS} -k zImage modules dtbs
 ARCH=arm CROSS_COMPILE=${CCPREFIX} INSTALL_MOD_PATH=${MOD_DIR} make -j${NUM_CPUS} modules_install
-${TOOLS_DIR}/mkimage/mkknlimg arch/arm/boot/zImage $PKG_DIR/boot/kernel.img
+scripts/mkknlimg arch/arm/boot/zImage $PKG_DIR/boot/kernel.img
 cp -r ${MOD_DIR}/lib/* ${PKG_DIR}
 
 # RasPi v2 build
 cd $V2_DIR
-git pull
+git fetch
 git checkout ${GIT_BRANCH}
+git pull
 git submodule update --init
 CCPREFIX=${TOOLS_DIR}/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-
 if [ ! -f .config ]; then
@@ -193,9 +195,10 @@ ARCH=arm CROSS_COMPILE=${CCPREFIX} INSTALL_MOD_PATH=${MOD_DIR} make -j${NUM_CPUS
 cp arch/arm/boot/dts/*.dtb $PKG_DIR/boot/
 cp arch/arm/boot/dts/overlays/*.dtb* $PKG_DIR/boot/overlays/
 cp arch/arm/boot/dts/overlays/README $PKG_DIR/boot/overlays/
-${TOOLS_DIR}/mkimage/mkknlimg arch/arm/boot/zImage $PKG_DIR/boot/kernel7.img
+scripts/mkknlimg arch/arm/boot/zImage $PKG_DIR/boot/kernel7.img
 cp -r ${MOD_DIR}/lib/* ${PKG_DIR}
 
+# tar up firmware
 cd $PKG_TMP
 tar czf raspberrypi-firmware_${NEW_VERSION}.orig.tar.gz raspberrypi-firmware_${NEW_VERSION}
 
@@ -206,17 +209,18 @@ cd $PKG_DIR/debian
 source gen_bootloader_postinst_preinst.sh
 
 cd $PKG_DIR
-dch -v ${NEW_VERSION}-1 --package raspberrypi-firmware 'Adds Adafruit Kernel-o-Matic custom kernel'
+dch -v ${NEW_VERSION}-1 --package raspberrypi-firmware 'Adds Adafruit Kernel-o-Matic pitft kernel'
 chown -R vagrant $PKG_TMP
 su vagrant -c "debuild --no-lintian -ePATH=${PATH}:${TOOLS_DIR}/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin -b -aarmhf -us -uc"
 
 cd $PKG_TMP
-mkdir custom_kernel_${NEW_VERSION}-1
-cp *.deb custom_kernel_${NEW_VERSION}-1
-cp /vagrant/install.sh custom_kernel_${NEW_VERSION}-1
-cp /vagrant/docs/INSTALL custom_kernel_${NEW_VERSION}-1
-chmod +x custom_kernel_${NEW_VERSION}-1/install.sh
-tar czf custom_kernel_${NEW_VERSION}-1.tar.gz custom_kernel_${NEW_VERSION}-1
-mv -f custom_kernel_${NEW_VERSION}-1.tar.gz /vagrant
+mkdir adafruit_pitft_kernel_${NEW_VERSION}-1
+cp *.deb adafruit_pitft_kernel_${NEW_VERSION}-1
+cp /vagrant/install.sh adafruit_pitft_kernel_${NEW_VERSION}-1
+cp /vagrant/*.dts adafruit_pitft_kernel_${NEW_VERSION}-1
+cp /vagrant/docs/INSTALL adafruit_pitft_kernel_${NEW_VERSION}-1
+chmod +x adafruit_pitft_kernel_${NEW_VERSION}-1/install.sh
+tar czf adafruit_pitft_kernel_${NEW_VERSION}-1.tar.gz adafruit_pitft_kernel_${NEW_VERSION}-1
+mv -f adafruit_pitft_kernel_${NEW_VERSION}-1.tar.gz /vagrant
 
-echo -e "THE custom_kernel_${NEW_VERSION}-1.tar.gz ARCHIVE SHOULD NOW BE\nAVAILABLE IN THE KERNEL-O-MATIC FOLDER ON YOUR HOST MACHINE\n\n"
+echo -e "THE adafruit_pitft_kernel_${NEW_VERSION}-1.tar.gz ARCHIVE SHOULD NOW BE\nAVAILABLE IN THE KERNEL-O-MATIC FOLDER ON YOUR HOST MACHINE\n\n"

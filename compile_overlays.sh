@@ -22,35 +22,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-if [[ $EUID -ne 0 ]]; then
-   echo "install.sh must be run as root. try: sudo install.sh"
-   exit 1
-fi
+for f in *.dts; do
+  dtc -@ -I dts -O dtb -o boot/overlays/${f%.*}.dtb $f
+  chmod +x boot/overlays/${f%.*}.dtb
+done
 
-# via: http://stackoverflow.com/a/5196108
-function exitonerr {
-
-  "$@"
-  local status=$?
-
-  if [ $status -ne 0 ]; then
-    echo "Error completing: $1" >&2
-    exit 1
-  fi
-
-  return $status
-
-}
-
-echo "**** Installing custom kernel ****"
-exitonerr dpkg -i raspberrypi*
-exitonerr dpkg -i libraspberrypi*
-echo "**** Kernel install complete! ****"
-echo
-
-read -p "Reboot to apply changes? (y/n): " -n 1 -r
-echo
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-  reboot
-fi
